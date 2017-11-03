@@ -10,7 +10,7 @@ Solo archivos con código fuente, de Yakindu, y archivos importantes.
 4. Crear el directorio donde se quiera clonar el repositorio
 5. Clonar el repositorio:
 ```bash
-	git clone https://github.com/pashmir/TP2_SSE
+	git clone https://github.com/pashmir/TP3_SSE
 ```
 6. Copiar los archivos del workspace donde importamos el ejemplo de aplicación sobre el workspace del repo
 	IMPORTANTE: No sobrescribir ningun archivo!
