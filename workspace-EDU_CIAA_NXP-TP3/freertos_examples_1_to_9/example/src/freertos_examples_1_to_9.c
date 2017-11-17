@@ -49,7 +49,7 @@
 #define EXAMPLE_8 (8)		/* Changing task priorities */
 #define EXAMPLE_9 (9)		/* Deleting tasks */
 
-#define TEST (EXAMPLE_1)
+#define TEST (EXAMPLE_9)
 
 /*****************************************************************************
  * Public types/enumerations/variables
@@ -73,7 +73,7 @@ static void prvSetupHardware(void)
 #if (TEST == EXAMPLE_1)		/* Creating tasks */
 
 /* Used as a loop counter to create a very crude delay. */
-#define mainDELAY_LOOP_COUNT		(0x0ffff)
+#define mainDELAY_LOOP_COUNT		(0xfffff)
 
 const char *pcTextForMain = "\r\nExample 1 - Creating tasks\r\n";
 
@@ -176,7 +176,7 @@ int main(void)
 #if (TEST == EXAMPLE_2)		/* Using the task parameter */
 
 /* Used as a loop counter to create a very crude delay. */
-#define mainDELAY_LOOP_COUNT		(0xfffff)
+#define mainDELAY_LOOP_COUNT		(0x1fffff)
 
 /* Define the strings that will be passed in as the task parameters.  These are
  * defined const and off the stack to ensure they remain valid when the tasks are
@@ -262,7 +262,7 @@ int main(void)
 #if (TEST == EXAMPLE_3)		/* Experimenting with priorities */
 
 /* Used as a loop counter to create a very crude delay. */
-#define mainDELAY_LOOP_COUNT		(0xfffff)
+#define mainDELAY_LOOP_COUNT		(0x8ffff)
 
 /* Define the strings that will be passed in as the task parameters.  These are
  * defined const and off the stack to ensure they remain valid when the tasks are
@@ -457,7 +457,7 @@ static void vTaskFunction(void *pvParameters) {
 		 * portTICK_RATE_MS constant is used to convert this to milliseconds.
 		 * xLastWakeTime is automatically updated within vTaskDelayUntil() so does not
 		 * have to be updated by this task code. */
-		vTaskDelayUntil(&xLastWakeTime, (250 / portTICK_RATE_MS));
+		vTaskDelayUntil(&xLastWakeTime, (1000 / portTICK_RATE_MS));
 	}
 }
 

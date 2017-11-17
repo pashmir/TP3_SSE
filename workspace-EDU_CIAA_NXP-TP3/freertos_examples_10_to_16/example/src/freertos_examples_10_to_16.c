@@ -47,7 +47,7 @@
 #define EXAMPLE_15 (15)		/* Re-writing vPrintString() to use a semaphore */
 #define EXAMPLE_16 (16)		/* Re-writing vPrintString() to use a gatekeeper task */
 
-#define TEST (EXAMPLE_10)
+#define TEST (EXAMPLE_14)
 
 /*****************************************************************************
  * Public types/enumerations/variables
@@ -388,7 +388,7 @@ int main(void)
 
 #if (TEST == EXAMPLE_12)		/* Using a counting semaphore to synchronize a task with an interrupt */
 
-const char *pcTextForMain = "\r\nExample 12 - Using a counting semaphore to synchronize a task with an interrupt\r\n";
+const char *pcTextForMain = "\r\nExample 12 - Using a binary semaphore to synchronize a task with an interrupt\r\n";
 
 /* The interrupt number to use for the software interrupt generation.  This
  * could be any unused number.  In this case the first chip level (non system)
@@ -561,7 +561,7 @@ int main(void)
 
 #if (TEST == EXAMPLE_13)		/* Using a binary semaphore to synchronize a task with an interrupt */
 
-const char *pcTextForMain = "\r\nExample 13 - Using a binary semaphore to synchronize a task with an interrupt\r\n";
+const char *pcTextForMain = "\r\nExample 13 - Using a counting semaphore to synchronize a task with an interrupt\r\n";
 
 /* The interrupt number to use for the software interrupt generation.  This
  * could be any unused number.  In this case the first chip level (non system)
@@ -854,7 +854,7 @@ void vSoftwareInterruptHandler(void)
 	static const char *pcStrings[] = {
 	    "String 0\r\n",
 	    "String 1\r\n",
-	    "String 2\r\n",
+	    "String 2.\r\n",
 	    "String 3\r\n"
 	};
 
