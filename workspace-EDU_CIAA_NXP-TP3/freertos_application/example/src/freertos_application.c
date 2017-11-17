@@ -46,8 +46,7 @@
 								   por un periodo mayor al timeslice y no pueden mezclarse */
 #define APPLICATION_4 (4)		/* Porton de cochera usando el statechart */
 
-#define APPLICATION (APPLICATION_1)	/* T1 periodica 500ms + IRQ (productor) -> semaforo ->
- 	 	 	 	 	 	 	 	   	   T2 (consumidor/productor) -> Cola -> T3 (consumidor)*/
+#define APPLICATION (APPLICATION_1)
 
 /*****************************************************************************
  * Public types/enumerations/variables
@@ -66,16 +65,32 @@ static void prvSetupHardware(void)
 	/* Initial LED state is off */
 	Board_LED_Set(LED3, LED_OFF);
 }
+/* Configura las interrupciones */
+static void prvSetupSoftwareInterrupt()
+{
+	/* The interrupt service routine uses an (interrupt safe) FreeRTOS API
+	 * function so the interrupt priority must be at or below the priority defined
+	 * by configSYSCALL_INTERRUPT_PRIORITY. */
+	NVIC_SetPriority(mainSW_INTERRUPT_ID, mainSOFTWARE_INTERRUPT_PRIORITY);
 
-#if (APPLICATION == APPLICATION_1)
+	/* Enable the interrupt. */
+	NVIC_EnableIRQ(mainSW_INTERRUPT_ID);
+}
+
+#if (APPLICATION == APPLICATION_1)	/* T1 periodica 500ms + IRQ (productor) -> semaforo ->
+ 	 	 	 	 	 	 	 	   	   T2 (consumidor/productor) -> Cola -> T3 (consumidor)*/
 
 const char *TextForTask1="Tarea 1 periódica ejecutandose. Activando interrupción\r\n";
 const char *TextForIRQ="Otorgando semáforo.\r\n";
-
+const char *TextForTask2="Semáforo recibido. Enviando datos a la cola.\r\n";
+const char *QueueMessage="Mensaje transmitido por cola";
+/* Se crea el handler del semaforo*/
 xSemaphoreHandle xTask2Semaphore;
+/* Se crea el handler de la cola */
+xQueueHandle xQueue;
 
 /* Tarea periodica de 500 ms */
-void TareaPeriodica(void *pvParameters){
+void PeriodicTask(void *pvParameters){
 	portTickType xLastExecutionTime;
 	while (1)
 	{
@@ -88,7 +103,7 @@ void TareaPeriodica(void *pvParameters){
 /*Handler de la interrupcion productora */
 void DAC_IRQHandler(void){
 	portBASE_TYPE xHigherPriorityTaskWoken = pdFALSE;
-
+	DEBUGOUT(TextForIRQ);
 	/* 'Give' the semaphore to unblock the task. */
     xSemaphoreGiveFromISR(xTask2Semaphore, &xHigherPriorityTaskWoken);
 
@@ -109,8 +124,88 @@ void DAC_IRQHandler(void){
 	portEND_SWITCHING_ISR(xHigherPriorityTaskWoken);
 }
 
-/* Tarea 2 consumidora del semaforo */
+/* Tarea 2 consumidora del semaforo, productora de cola */
+void InterruptHandlerTask(void *pvParameters){
+	portBASE_TYPE xStatus;
+	while(1)
+	{
+		vSemaphoreTake(xTask2Semaphore,portMAX_DELAY);
+		DEBUGOUT(TextForTask2);
+		xStatus = xQueueSendToBack(xQueue, QueueMessage,(portTickType)0);
 
+		if (xStatus != pdPASS) {
+			/* We could not write to the queue because it was full - this must
+			 * be an error as the receiving task should make space in the queue
+			 * as soon as both sending tasks are in the Blocked state. */
+			DEBUGOUT("No se pudo enviar a la cola.\r\n");
+		}
+	}
+}
+
+/* Tarea 3 consumidora de cola*/
+void QueueReceiverTask(void *pvParameters){
+	const portTickType xTicksToWait = 100 / portTICK_RATE_MS;	// tiene que ser un tiempo
+																// menor al de la interrupcion
+	char *ReceivedText;
+	/* As this task unblocks immediately that data is written to the queue this
+	 * call should always find the queue empty. */
+	if (uxQueueMessagesWaiting(xQueue) != 0) {
+		DEBUGOUT("La cola debería estar vacía!\r\n");
+	}
+
+	/* The first parameter is the queue from which data is to be received.  The
+	 * queue is created before the scheduler is started, and therefore before this
+	 * task runs for the first time.
+	 *
+	 * The second parameter is the buffer into which the received data will be
+	 * placed.  In this case the buffer is simply the address of a variable that
+	 * has the required size to hold the received data.
+	 *
+	 * The last parameter is the block time � the maximum amount of time that the
+	 * task should remain in the Blocked state to wait for data to be available should
+	 * the queue already be empty. */
+	xStatus = xQueueReceive(xQueue, ReceivedText, xTicksToWait);
+
+	if (xStatus == pdPASS) {
+	/* Data was successfully received from the queue, print out the received
+	 * value. */
+	DEBUGOUT(ReceivedText);
+	}
+	else {
+		/* We did not receive anything from the queue even after waiting for 100ms.
+		 * This must be an error as the sending tasks are free running and will be
+		 * continuously writing to the queue. */
+		DEBUGOUT("No se pudo recibir de la cola.\r\n");	// que mal suena esto
+	}
+}
+
+int main(void){
+	/* Sets up system hardware */
+	prvSetupHardware();
+
+	/* Se crea el semaforo */
+	vSemaphoreCreateBinary(xTask2Semaphore);
+	/* Se crea la cola */
+	xQueue = xQueueCreate(5, sizeof(char *));
+
+	/* Se comprueba que el semaforo y la cola se hayan creado con éxito */
+	if (xTask2Semaphore != (xSemaphoreHandle) NULL && xQueue != (xQueueHandle)NULL) {
+		DEBUGOUT("\r\n***** Ej 4: *****\n\r");
+		/* Enable the software interrupt and set its priority. */
+    	prvSetupSoftwareInterrupt();
+
+		vTaskCreate(PeriodicTask,(char*)"Tarea periodica",configMINIMAL_STACK_SIZE,NULL,
+   				(tskIDLE_PRIORITY + 1UL), (xTaskHandle *) NULL);
+		vTaskCreate(InterruptHandlerTask,(char*)"Tarea asociada a interrupcion",
+				configMINIMAL_STACK_SIZE,(tskIDLE_PRIORITY + 2UL),(xTaskHandle *)NULL);
+		vTaskCreate(QueueReceiverTask,(char*)"Tarea receptora de cola",configMINIMAL_STACK_SIZE,
+				(tskIDLE_PRIORITY + 3UL),(xTaskHandle *)NULL);
+		vTaskStartScheduler();
+	}
+	while(1);
+	return ((int) NULL);
+
+}
 
 #endif
 
