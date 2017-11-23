@@ -239,7 +239,8 @@ const char *TextForIRQ="Interrupcion. Eviando de cola\r\n";
 const char *QueueMessage="Un mensaje interesante\r\n";
 
 char *DAC_IRQptr;
-
+/* Se crea el handler de la task que da el semaforo */
+TaskHandle_t xTask3Handle;
 /* Se crea el handler del semaforo*/
 xSemaphoreHandle xTask2Semaphore;
 /* Se crea el handler de la cola */
@@ -252,6 +253,7 @@ void PeriodicTask(void *pvParameters){
 	portTickType xLastExecutionTime;
 	while (1)
 	{
+		vTaskResume(xTask3Handle);
 		vTaskDelayUntil(&xLastExecutionTime, 500 / portTICK_RATE_MS);	// 500 ms de delay
 		DEBUGOUT(TextForTask1);
 		NVIC_SetPendingIRQ(mainSW_INTERRUPT_ID);
@@ -302,13 +304,14 @@ void SemaphoreTask (void *pvParameters){
 
 	while(1)
 	{
-		vTaskDelayUntil(&xLastExecutionTime, 500 / portTICK_RATE_MS);	// 500 ms de delay
+		vTaskDelayUntil(&xLastExecutionTime, 250 / portTICK_RATE_MS);	// 500 ms de delay
 		DEBUGOUT(TextForTask3);
 		 if( xSemaphoreGive( xTask2Semaphore ) != pdTRUE )
 		 {
 		     // We would expect this call to fail because we cannot give
 			 // a semaphore without first "taking" it!
 		 }
+		 vTaskSuspend((TaskHandle_t)NULL);
 	}
 }
 
@@ -329,7 +332,7 @@ int main(void){
     	xTaskCreate(InterruptSenderTask,(char*)"Tarea asociada a interrupcion",
     					configMINIMAL_STACK_SIZE,NULL,(tskIDLE_PRIORITY + 3UL),(xTaskHandle *)NULL);
 		xTaskCreate(SemaphoreTask,(char*)"Tarea semaforo",configMINIMAL_STACK_SIZE,
-				NULL,(tskIDLE_PRIORITY + 1UL),(xTaskHandle *)NULL);
+				NULL,(tskIDLE_PRIORITY + 2UL),&xTask3Handle);
 		xTaskCreate(PeriodicTask,(char*)"Tarea periodica",configMINIMAL_STACK_SIZE,NULL,
 		   		(tskIDLE_PRIORITY + 1UL), (xTaskHandle *) NULL);
 
