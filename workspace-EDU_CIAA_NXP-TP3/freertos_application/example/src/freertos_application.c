@@ -46,7 +46,7 @@
 								   por un periodo mayor al timeslice y no pueden mezclarse */
 #define APPLICATION_4 (4)		/* Porton de cochera usando el statechart */
 
-#define APPLICATION (APPLICATION_1)
+#define APPLICATION (APPLICATION_2)
 
 /*****************************************************************************
  * Public types/enumerations/variables
@@ -160,8 +160,8 @@ void InterruptHandlerTask(void *pvParameters){
 
 /* Tarea 3 consumidora de cola*/
 void QueueReceiverTask(void *pvParameters){
-	const portTickType xTicksToWait = 100 / portTICK_RATE_MS;	// tiene que ser un tiempo
-																// menor al de la interrupcion
+	const portTickType xTicksToWait = 600 / portTICK_RATE_MS;	// tiene que ser un tiempo
+																// mayor al de la interrupcion
 	char *ReceivedText=NULL;
 	portBASE_TYPE xStatus;
 	while(1)
@@ -232,6 +232,114 @@ int main(void){
 #endif
 
 #if (APPLICATION == APPLICATION_2)	/* Idem APP1 pero con direccion y roles invertidos */
+const char *TextForTask1="Tarea 1. Activando interrupcion\r\n";
+const char *TextForTask2="Tarea 2. Semaforo recibido. Enviando a cola.\r\n";
+const char *TextForTask3="Tarea 3. Enviando Semaforo\r\n";
+const char *TextForIRQ="Interrupcion. Eviando de cola\r\n";
+const char *QueueMessage="Un mensaje interesante\r\n";
+
+char *DAC_IRQptr;
+
+/* Se crea el handler del semaforo*/
+xSemaphoreHandle xTask2Semaphore;
+/* Se crea el handler de la cola */
+xQueueHandle xQueue;
+
+/* Se mantiene la tarea periodica de la app 1. Pero ahora la interrupcion hace que se
+ * consuma la data */
+/* Tarea periodica de 500 ms */
+void PeriodicTask(void *pvParameters){
+	portTickType xLastExecutionTime;
+	while (1)
+	{
+		vTaskDelayUntil(&xLastExecutionTime, 500 / portTICK_RATE_MS);	// 500 ms de delay
+		DEBUGOUT(TextForTask1);
+		NVIC_SetPendingIRQ(mainSW_INTERRUPT_ID);
+	}
+}
+
+/* Handler de la interrupcion consumidora
+ * Recibe la cola llena */
+void DAC_IRQHandler(void){
+	portBASE_TYPE xHigherPriorityTaskWoken = pdFALSE;
+	DEBUGOUT(TextForIRQ);
+	/* Con este if chequeo por si la cola todavia no se escribio */
+	if (xQueueReceiveFromISR(xQueue, &DAC_IRQptr, &xHigherPriorityTaskWoken) != errQUEUE_EMPTY)
+	{
+		DEBUGOUT(DAC_IRQptr);
+	}
+    /* Clear the software interrupt bit using the interrupt controllers
+     * Clear Pending register. */
+	NVIC_ClearPendingIRQ(mainSW_INTERRUPT_ID);
+    /* "pasar el mate" desde la interrupcion */
+	portEND_SWITCHING_ISR(xHigherPriorityTaskWoken);
+}
+
+/* Tarea 2
+ * Consumidora de semaforo, Generadora de cola  */
+void InterruptSenderTask(void *pvParameters){
+	portBASE_TYPE xStatus;
+	const portTickType xTicksToWait=500/portTICK_RATE_MS; //lo dejo por las dudas
+	xSemaphoreTake(xTask2Semaphore, (portTickType) 0);
+	while(1)
+	{
+		xSemaphoreTake(xTask2Semaphore,portMAX_DELAY);
+		DEBUGOUT(TextForTask2);
+		xStatus = xQueueSendToBack(xQueue, &QueueMessage, xTicksToWait);
+
+		if (xStatus != pdPASS) {
+			/* We could not write to the queue because it was full - this must
+			 * be an error as the receiving task should make space in the queue
+			 * as soon as both sending tasks are in the Blocked state. */
+			DEBUGOUT("No se pudo enviar a la cola.\r\n");
+		}
+	}
+}
+/* Tarea 3
+ * Generadora de semaforo*/
+void SemaphoreTask (void *pvParameters){
+	portTickType xLastExecutionTime;
+
+	while(1)
+	{
+		vTaskDelayUntil(&xLastExecutionTime, 500 / portTICK_RATE_MS);	// 500 ms de delay
+		DEBUGOUT(TextForTask3);
+		 if( xSemaphoreGive( xTask2Semaphore ) != pdTRUE )
+		 {
+		     // We would expect this call to fail because we cannot give
+			 // a semaphore without first "taking" it!
+		 }
+	}
+}
+
+int main(void){
+	/* Sets up system hardware */
+	prvSetupHardware();
+
+	/* Se crea el semaforo */
+	vSemaphoreCreateBinary(xTask2Semaphore);
+	/* Se crea la cola */
+	xQueue = xQueueCreate(5, sizeof(char *));
+
+	/* Se comprueba que el semaforo y la cola se hayan creado con éxito */
+	if (xTask2Semaphore != (xSemaphoreHandle) NULL && xQueue != (xQueueHandle)NULL) {
+		DEBUGOUT("\r\n***** Ej 5: *****\n\r");
+		/* Enable the software interrupt and set its priority. */
+    	prvSetupSoftwareInterrupt();
+    	xTaskCreate(InterruptSenderTask,(char*)"Tarea asociada a interrupcion",
+    					configMINIMAL_STACK_SIZE,NULL,(tskIDLE_PRIORITY + 3UL),(xTaskHandle *)NULL);
+		xTaskCreate(SemaphoreTask,(char*)"Tarea semaforo",configMINIMAL_STACK_SIZE,
+				NULL,(tskIDLE_PRIORITY + 1UL),(xTaskHandle *)NULL);
+		xTaskCreate(PeriodicTask,(char*)"Tarea periodica",configMINIMAL_STACK_SIZE,NULL,
+		   		(tskIDLE_PRIORITY + 1UL), (xTaskHandle *) NULL);
+
+
+		vTaskStartScheduler();
+	}
+	while(1);
+	return ((int) NULL);
+
+}
 
 #endif
 
