@@ -250,11 +250,11 @@ xQueueHandle xQueue;
  * consuma la data */
 /* Tarea periodica de 500 ms */
 void PeriodicTask(void *pvParameters){
-	portTickType xLastExecutionTime;
+	portTickType xLastExecutionTime1;
+	xLastExecutionTime1 = xTaskGetTickCount();
 	while (1)
 	{
-		vTaskResume(xTask3Handle);
-		vTaskDelayUntil(&xLastExecutionTime, 500 / portTICK_RATE_MS);	// 500 ms de delay
+		vTaskDelayUntil(&xLastExecutionTime1, 500 / portTICK_RATE_MS);	// 500 ms de delay
 		DEBUGOUT(TextForTask1);
 		NVIC_SetPendingIRQ(mainSW_INTERRUPT_ID);
 	}
@@ -281,14 +281,14 @@ void DAC_IRQHandler(void){
  * Consumidora de semaforo, Generadora de cola  */
 void InterruptSenderTask(void *pvParameters){
 	portBASE_TYPE xStatus;
-	const portTickType xTicksToWait=500/portTICK_RATE_MS; //lo dejo por las dudas
+	const portTickType xTicksToWait=600/portTICK_RATE_MS; //lo dejo por las dudas
 	xSemaphoreTake(xTask2Semaphore, (portTickType) 0);
 	while(1)
 	{
 		xSemaphoreTake(xTask2Semaphore,portMAX_DELAY);
-		DEBUGOUT(TextForTask2);
 		xStatus = xQueueSendToBack(xQueue, &QueueMessage, xTicksToWait);
 
+		DEBUGOUT(TextForTask2);
 		if (xStatus != pdPASS) {
 			/* We could not write to the queue because it was full - this must
 			 * be an error as the receiving task should make space in the queue
@@ -300,18 +300,19 @@ void InterruptSenderTask(void *pvParameters){
 /* Tarea 3
  * Generadora de semaforo*/
 void SemaphoreTask (void *pvParameters){
-	portTickType xLastExecutionTime;
-
+	portTickType xLastExecutionTime2;
+	xLastExecutionTime2 = xTaskGetTickCount();
 	while(1)
 	{
-		vTaskDelayUntil(&xLastExecutionTime, 250 / portTICK_RATE_MS);	// 500 ms de delay
+		//vTaskDelayUntil(&xLastExecutionTime2, 500 / portTICK_RATE_MS);	// 500 ms de delay
 		DEBUGOUT(TextForTask3);
 		 if( xSemaphoreGive( xTask2Semaphore ) != pdTRUE )
 		 {
 		     // We would expect this call to fail because we cannot give
 			 // a semaphore without first "taking" it!
+			 DEBUGOUT("NO PUDE DAR SEMAFORO\r\n");
+			 vTaskDelayUntil(&xLastExecutionTime2, 700 / portTICK_RATE_MS);
 		 }
-		 vTaskSuspend((TaskHandle_t)NULL);
 	}
 }
 
@@ -332,9 +333,9 @@ int main(void){
     	xTaskCreate(InterruptSenderTask,(char*)"Tarea asociada a interrupcion",
     					configMINIMAL_STACK_SIZE,NULL,(tskIDLE_PRIORITY + 3UL),(xTaskHandle *)NULL);
 		xTaskCreate(SemaphoreTask,(char*)"Tarea semaforo",configMINIMAL_STACK_SIZE,
-				NULL,(tskIDLE_PRIORITY + 2UL),&xTask3Handle);
+						NULL,(tskIDLE_PRIORITY + 1UL),&xTask3Handle);
 		xTaskCreate(PeriodicTask,(char*)"Tarea periodica",configMINIMAL_STACK_SIZE,NULL,
-		   		(tskIDLE_PRIORITY + 1UL), (xTaskHandle *) NULL);
+		   		(tskIDLE_PRIORITY + 2UL), (xTaskHandle *) NULL);
 
 
 		vTaskStartScheduler();
